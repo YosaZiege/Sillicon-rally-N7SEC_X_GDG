@@ -1,0 +1,384 @@
+@import 'variables';
+
+* {
+  font-family: 'Press Start 2P', sans-serif;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+.overflow-mask {
+  background-color: $black;
+  color: $white;
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  margin: 0;
+  overflow: hidden;
+  position: relative;
+  touch-action: manipulation;
+}
+
+.backdrop {
+  position: absolute;
+  visibility: hidden;
+}
+
+.fps-display {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  visibility: hidden;
+}
+
+.preload-div {
+  align-items: baseline;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap-reverse;
+  position: absolute;
+  visibility: hidden;
+}
+
+.header-buttons {
+  padding: 2rem 3rem;
+  width: calc(100vw - 6rem);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+
+  a {
+    font-family: none;
+    display: inline-block;
+  }
+
+  img {
+    height: 2rem;
+  }
+
+  button {
+    background: none;
+    border: 0;
+    color: $white;
+    cursor: pointer;
+    outline: none;
+    padding: 0;
+
+    .material-icons {
+      font-size: 40px;
+    }
+  }
+}
+
+.paused-text {
+  align-items: center;
+  display: flex;
+  font-size: 50px;
+  height: 100%;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  user-select: none;
+  visibility: hidden;
+  width: 100%;
+  z-index: 1;
+}
+
+.game-ui {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+
+  .one-up {
+    animation: blink 0.6s infinite;
+  }
+
+  @keyframes blink {
+    0% {
+      opacity: 0;
+    }
+    49% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .row {
+    display: flex;
+  }
+
+  .top {
+    ._25 {
+      width: 25%;
+    }
+
+    ._50 {
+      width: 50%;
+    }
+
+    .column {
+      :first-child {
+        text-align: center;
+      }
+
+      :not(:first-child) {
+        margin-right: calc(50% - 3em);
+        text-align: right;
+      }
+    }
+  }
+
+  .bottom {
+    justify-content: space-between;
+
+    .extra-lives {
+      align-items: flex-start;
+      display: flex;
+    }
+
+    .fruit-display {
+      display: flex;
+      flex-direction: row-reverse;
+    }
+  }
+}
+
+.loading-cover {
+  background: $yellow;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  width: 50vw;
+  z-index: 4;
+}
+
+.left {
+  left: 0;
+  transition: left $generic-duration ($generic-duration);
+}
+
+.right {
+  right: 0;
+  transition: right $generic-duration ($generic-duration);
+}
+
+.main-menu-container {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  transition: opacity 0.25s;
+  visibility: hidden;
+  width: 100%;
+  z-index: 5;
+}
+
+.brent-ward-logo {
+  position: absolute;
+  top: 2rem;
+  left: 3rem;
+
+  img {
+    height: 2rem;
+  }
+}
+
+.logo {
+  width: 800px;
+  max-width: 80vw;
+  margin-top: 25vh;
+}
+
+.game-start {
+  background-color: $logo-yellow;
+  border: 5px solid $logo-black;
+  border-radius: 10px;
+  box-shadow: 5px 5px $logo-red;
+  color: $logo-black;
+  cursor: pointer;
+  font-size: 48px;
+  outline: none;
+  padding: 16px;
+
+  &:active {
+    box-shadow: none;
+    transform: translateX(5px) translateY(5px);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .game-start {
+    scale: 0.5;
+  }
+}
+
+.loading-container {
+  background-color: $black;
+  border: 5px solid $blue;
+  border-radius: 10px;
+  height: 48px;
+  position: absolute;
+  top: 50%;
+  transition: opacity $generic-duration $loading-pacman-duration;
+  width: 500px;
+  z-index: 5;
+}
+
+@media only screen and (max-width: 600px) {
+  .loading-container {
+    transform: scale(0.5);
+  }
+}
+
+.loading-pacman {
+  animation: loading-animation 0.3s steps(4) infinite;
+  background-color: $black;
+  background-image: url('../app/style/graphics/spriteSheets/characters/pacman/pacman_right.svg');
+  background-size: 192px;
+  border-radius: 10px;
+  height: 48px;
+  position: absolute;
+  transition: left $loading-pacman-duration;
+  width: 48px;
+  z-index: 6;
+}
+
+@keyframes loading-animation {
+  100% {
+    background-position: -192px;
+  }
+}
+
+.loading-dot-mask {
+  background-color: $black;
+  border-radius: 10px;
+  height: 48px;
+  left: 0;
+  position: absolute;
+  top: 0;
+  transition: width $loading-pacman-duration;
+  z-index: -1;
+}
+
+.loading-dot {
+  background-image: url('../app/style/graphics/spriteSheets/pickups/pacdot.svg');
+  height: 6px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  z-index: -2;
+}
+
+._5 {
+  left: 5%;
+}
+._10 {
+  left: 10%;
+}
+._15 {
+  left: 15%;
+}
+._20 {
+  left: 20%;
+}
+._25 {
+  left: 25%;
+}
+._30 {
+  left: 30%;
+}
+._35 {
+  left: 35%;
+}
+._40 {
+  left: 40%;
+}
+._45 {
+  left: 45%;
+}
+._50 {
+  left: 50%;
+}
+._55 {
+  left: 55%;
+}
+._60 {
+  left: 60%;
+}
+._65 {
+  left: 65%;
+}
+._70 {
+  left: 70%;
+}
+._75 {
+  left: 75%;
+}
+._80 {
+  left: 80%;
+}
+._85 {
+  left: 85%;
+}
+._90 {
+  left: 90%;
+}
+._95 {
+  left: 95%;
+}
+
+.error-message {
+  color: $logo-black;
+  opacity: 0;
+  position: absolute;
+  top: 30vh;
+  transition: opacity $generic-duration;
+  visibility: hidden;
+  width: 50vw;
+  z-index: 4;
+
+  .error-pacman {
+    animation: error-animation 1.5s steps(12) infinite;
+    background-image: url('../app/style/graphics/spriteSheets/characters/pacman/pacman_error.svg');
+    background-size: 576px;
+    height: 48px;
+    margin-left: 10px;
+    width: 48px;
+    z-index: 6;
+  }
+
+  @keyframes error-animation {
+    100% {
+      background-position: -576px;
+    }
+  }
+
+  .header {
+    display: flex;
+    font-size: 50px;
+    margin-bottom: 30px;
+  }
+
+  .body {
+    font-size: 20px;
+    line-height: 1.25;
+  }
+}

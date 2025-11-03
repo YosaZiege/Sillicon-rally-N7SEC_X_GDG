@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "Team": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Team",
+      "type": "object",
+      "description": "Represents a team participating in the Security Challenge Arena.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the team. (Primary Key)"
+        },
+        "teamName": {
+          "type": "string",
+          "description": "The name of the team."
+        },
+        "score": {
+          "type": "number",
+          "description": "The team's total score in the Security Challenge Arena."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the team was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "teamName",
+        "score",
+        "createdAt"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user participating in the Security Challenge Arena.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user. (Primary Key)"
+        },
+        "username": {
+          "type": "string",
+          "description": "The username of the user."
+        },
+        "teamId": {
+          "type": "string",
+          "description": "Reference to Team. (Relationship: Team 1:N User)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user was created.",
+          "format": "date-time"
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user (e.g., 'user', 'admin').",
+          "format": "string"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "teamId",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/teams/{teamId}",
+        "definition": {
+          "entityName": "Team",
+          "schema": {
+            "$ref": "#/backend/entities/Team"
+          },
+          "description": "Stores team information. Includes 'teamId' as a parameter.",
+          "params": [
+            {
+              "name": "teamId",
+              "description": "The unique identifier for the team."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user information. Includes 'userId' as a parameter. Contains the denormalized 'teamId' from the team document for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "roles_admin",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "This collection uses Existence over Content to define Admin user, authorization relies solely on `request.auth.uid` and existence of document",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed to support the Security Challenge Arena application, focusing on secure user and team management, and efficient data retrieval for challenges and leaderboards. It prioritizes Authorization Independence and clarity for security rules, avoiding hierarchical `get()` calls and enabling robust list operations.\n\n*   `/teams/{teamId}`: Stores team information. \n*   `/users/{userId}`: Stores user information, including the `teamId`. The `role` field is included to manage user permissions. A dedicated document `/roles_admin/{uid}` is used to grant admin privileges based on document existence, rather than content, simplifying security rules.\n\nThe structure ensures Authorization Independence by:\n\n*   Storing the `teamId` within each user document. This allows security rules to validate team membership without needing to read the team document.\n\nThis structure supports the required QAPs by:\n\n*   Using Structural Segregation to store teams and users in separate collections, each with its own security posture.\n*   Leveraging Path-Based ownership for user data (`/users/{userId}`) for simple and secure access control.\n\nDenormalization of team membership to user documents ensures simpler rules and atomicity for `create` operations."
+  }
+}

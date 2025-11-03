@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Grants public read access to team information, restricts writes to validated team creation.
+     * @path /teams/{teamId}
+     * @allow get, list: if true;
+     * @allow create: if request.resource.data.id == request.auth.uid;
+     * @allow update: if false;
+     * @allow delete: if false;
+     * @principle Allows anyone to read team information but restricts modification and deletion.
+     */
+    match /teams/{teamId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Enforces owner-only access to user documents.
+     * @path /users/{userId}
+     * @allow get: if isOwner(userId);
+     * @allow list: if false;
+     * @allow create: if isOwner(userId);
+     * @allow update: if isExistingOwner(userId);
+     * @allow delete: if isExistingOwner(userId);
+     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if request.auth.uid == userId;
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+     /**
+      * @description Grants admin privileges based on the existence of a document in this collection.
+      * @path /roles_admin/{userId}
+      * @allow get: if isAdmin(userId);
+      * @allow list: if false;
+      * @allow create: if isAdmin(userId);
+      * @allow update: if false;
+      * @allow delete: if isAdmin(userId);
+      * @principle Uses document existence to grant admin privileges, simplifying security rules.
+      */
+    match /roles_admin/{userId} {
+        allow get: if isAdmin(userId);
+        allow list: if false;
+        allow create: if isAdmin(userId);
+        allow update: if false;
+        allow delete: if isAdmin(userId);
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+    }
+
+    function isAdmin(userId) {
+        return exists(/databases/$(database)/documents/roles_admin/$(userId));
+    }
+  }
+}

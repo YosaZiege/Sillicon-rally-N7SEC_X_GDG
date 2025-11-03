@@ -1,0 +1,23 @@
+[
+  {
+    "id": "team_1761147651991",
+    "teamName": "L7ajroot",
+    "isAdmin": true,
+    "isActive": true,
+    "createdAt": "2025-10-22T15:40:51.991Z"
+  },
+  {
+    "id": "team_1761870520298",
+    "teamName": "team_1",
+    "isAdmin": false,
+    "isActive": true,
+    "createdAt": "2025-10-31T00:28:40.298Z"
+  },
+  {
+    "id": "team_1761870697425",
+    "teamName": "team_2",
+    "isAdmin": false,
+    "isActive": true,
+    "createdAt": "2025-10-31T00:31:37.425Z"
+  }
+]
