@@ -15,27 +15,26 @@ async function initializeStorage() {
                      process.env.POSTGRES_PRISMA_URL ||
                      process.env.DATABASE_URL;
 
-
   try {
     const { postgresStorage } = await import('./postgres-storage');
     
-    // Test the connection by initializing tables
-    await postgresStorage.initializeTables();
+    // REMOVE THIS LINE - tables are initialized via init.sql
+    // await postgresStorage.initializeTables();
     
     dbInstance = postgresStorage;
     storageInitialized = true;
+    console.log('✅ Storage initialized successfully');
     return dbInstance;
   } catch (error: any) {
-    
-    // Fallback to in-memory storage
-
+    console.error('❌ Failed to initialize storage:', error);
+    throw error;
   }
 }
 
 // Get storage instance with proper initialization
 async function getStorage() {
   if (!storageInitialized) {
-    await initializeStorage();
+   dbInstance = await initializeStorage();
   }
   return dbInstance;
 }
@@ -49,7 +48,6 @@ function maskPassword(connectionString: string): string {
     }
     return url.toString();
   } catch {
-    // If it's not a valid URL, just return the original with masked password
     return connectionString.replace(/:([^:@]+)@/, ':***@');
   }
 }
@@ -157,7 +155,7 @@ export const storage = {
                        process.env.DATABASE_URL;
     
     return {
-      type: dbInstance.constructor.name.includes('postgres') ? 'postgres' : 'in-memory',
+      type: 'postgres',
       initialized: storageInitialized,
       url: postgresUrl ? maskPassword(postgresUrl) : undefined
     };
@@ -177,7 +175,7 @@ export const storage = {
           teams: teams.length,
           leaderboardEntries: leaderboard.length,
           ctfState,
-          storage: dbInstance.constructor.name.includes('postgres') ? 'postgres' : 'in-memory'
+          storage: 'postgres'
         }
       };
     } catch (error: any) {
@@ -194,7 +192,7 @@ export const storage = {
 
 // Initialize storage on import
 initializeStorage().catch((error) => {
-  // Failed to initialize storage on startup
+  console.error('❌ Failed to initialize storage on startup:', error);
 });
 
 export default storage;

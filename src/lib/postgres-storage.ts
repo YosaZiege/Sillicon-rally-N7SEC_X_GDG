@@ -1,152 +1,76 @@
-import { Pool } from 'pg';
-import type { Team, LeaderboardEntry, GameProgress } from './types';
+import { Pool } from "pg";
+import type { Team, LeaderboardEntry, GameProgress } from "./types";
 
-// Parse connection string into config object
 function parseConnectionConfig() {
-  const connectionString = process.env.PRISMA_DATABASE_URL || 
-                          process.env.POSTGRES_URL || 
-                          process.env.POSTGRES_PRISMA_URL ||
-                          process.env.DATABASE_URL;
+  let connectionString =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL;
 
   if (!connectionString) {
-    throw new Error('No PostgreSQL connection string found');
+    console.error("❌ No database connection string found!");
+    throw new Error("No PostgreSQL connection string found");
   }
 
   try {
-    // Parse the connection string as URL
     const url = new URL(connectionString);
-    
+    console.log("✅ Connecting to database:", url.hostname + ":" + url.port);
+
     const config = {
       host: url.hostname,
       port: parseInt(url.port) || 5432,
-      database: url.pathname.replace(/^\//, '') || 'postgres', // Remove leading slash
+      database: url.pathname.replace(/^\//, "") || "mydatabase",
       user: url.username,
-      password: url.password,
-      ssl: {
-        rejectUnauthorized: false
-      },
+      password: url.password || "",
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     };
 
-    
+    console.log("Config:", {
+      host: config.host,
+      port: config.port,
+      database: config.database,
+      user: config.user,
+      hasPassword: !!config.password,
+    });
+
     return config;
   } catch (error) {
-    
-    // Fallback to connection string if parsing fails
-    return {
-      connectionString,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    };
+    console.error("❌ Failed to parse connection string:", error);
+    throw error;
   }
 }
-
-// Create connection pool
 const poolConfig = parseConnectionConfig();
 const pool = new Pool(poolConfig);
 
-// Test connection on startup
-pool.on('connect', () => {
-  // Connected to PostgreSQL
+pool.on("connect", () => {
+  console.log("✅ PostgreSQL connected");
 });
 
-pool.on('error', (err) => {
-  // PostgreSQL pool error
+pool.on("error", (err) => {
+  console.error("❌ PostgreSQL pool error:", err);
 });
 
 // Postgres storage adapter
 export const postgresStorage = {
-  // Initialize tables if they don't exist
-  async initializeTables() {
-    const client = await pool.connect();
-    try {
-
-      // Create teams table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS teams (
-          id TEXT PRIMARY KEY,
-          team_name TEXT UNIQUE NOT NULL,
-          is_admin BOOLEAN NOT NULL DEFAULT FALSE,
-          is_active BOOLEAN NOT NULL DEFAULT TRUE,
-          created_at TEXT NOT NULL
-        )
-      `);
-
-      // Create leaderboard table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS leaderboard (
-          id SERIAL PRIMARY KEY,
-          name TEXT UNIQUE NOT NULL,
-          score INTEGER NOT NULL DEFAULT 0,
-          created_at BIGINT NOT NULL
-        )
-      `);
-
-      // Create CTF state table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS ctf_state (
-          id INTEGER PRIMARY KEY DEFAULT 1,
-          is_active BOOLEAN NOT NULL DEFAULT TRUE,
-          leaderboard_locked BOOLEAN NOT NULL DEFAULT FALSE,
-          updated_at BIGINT NOT NULL,
-          CONSTRAINT single_row CHECK (id = 1)
-        )
-      `);
-
-      // Create game progress table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS game_progress (
-          id SERIAL PRIMARY KEY,
-          team_name TEXT NOT NULL,
-          challenge_id TEXT NOT NULL,
-          score INTEGER NOT NULL DEFAULT 0,
-          completed BOOLEAN NOT NULL DEFAULT FALSE,
-          completed_at BIGINT,
-          created_at BIGINT NOT NULL,
-          updated_at BIGINT NOT NULL,
-          UNIQUE(team_name, challenge_id)
-        )
-      `);
-
-      // Insert default CTF state if not exists
-      await client.query(`
-        INSERT INTO ctf_state (id, is_active, leaderboard_locked, updated_at)
-        VALUES (1, TRUE, FALSE, $1)
-        ON CONFLICT (id) DO NOTHING
-      `, [Date.now()]);
-
-      // Insert default admin team if not exists
-      await client.query(`
-        INSERT INTO teams (id, team_name, is_admin, is_active, created_at)
-        VALUES ('team_1761147651991', 'L7ajroot', TRUE, TRUE, $1)
-        ON CONFLICT (id) DO NOTHING
-      `, [new Date().toISOString()]);
-
-    } catch (error) {
-      throw error;
-    } finally {
-      client.release();
-    }
-  },
-
   // Teams operations
   async getTeams() {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query('SELECT * FROM teams ORDER BY created_at DESC');
+      const { rows } = await client.query(
+        "SELECT * FROM teams ORDER BY created_at DESC",
+      );
       return rows.map((row: any) => ({
         id: row.id,
         name: row.team_name,
         teamName: row.team_name,
         isAdmin: Boolean(row.is_admin),
         isActive: Boolean(row.is_active),
-        createdAt: row.created_at
+        createdAt: row.created_at,
       })) as Team[];
     } catch (error) {
+      console.error("❌ getTeams error:", error);
       throw error;
     } finally {
       client.release();
@@ -156,12 +80,16 @@ export const postgresStorage = {
   async addTeam(team: Team) {
     const client = await pool.connect();
     try {
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO teams (id, team_name, is_admin, is_active, created_at)
         VALUES ($1, $2, $3, $4, $5)
-      `, [team.id, team.teamName, team.isAdmin, team.isActive, team.createdAt]);
+      `,
+        [team.id, team.teamName, team.isAdmin, team.isActive, team.createdAt],
+      );
       return team;
     } catch (error: any) {
+      console.error("❌ addTeam error:", error);
       throw error;
     } finally {
       client.release();
@@ -190,11 +118,11 @@ export const postgresStorage = {
       if (setParts.length === 0) return null;
 
       values.push(id);
-      const query = `UPDATE teams SET ${setParts.join(', ')} WHERE id = $${values.length} RETURNING *`;
-      
+      const query = `UPDATE teams SET ${setParts.join(", ")} WHERE id = $${values.length} RETURNING *`;
+
       const { rows } = await client.query(query, values);
       if (rows.length === 0) return null;
-      
+
       const row = rows[0];
       return {
         id: row.id,
@@ -202,9 +130,10 @@ export const postgresStorage = {
         teamName: row.team_name,
         isAdmin: Boolean(row.is_admin),
         isActive: Boolean(row.is_active),
-        createdAt: row.created_at
+        createdAt: row.created_at,
       } as Team;
     } catch (error: any) {
+      console.error("❌ updateTeam error:", error);
       throw error;
     } finally {
       client.release();
@@ -214,9 +143,13 @@ export const postgresStorage = {
   async deleteTeam(id: string) {
     const client = await pool.connect();
     try {
-      const { rowCount } = await client.query('DELETE FROM teams WHERE id = $1', [id]);
+      const { rowCount } = await client.query(
+        "DELETE FROM teams WHERE id = $1",
+        [id],
+      );
       return (rowCount ?? 0) > 0;
     } catch (error) {
+      console.error("❌ deleteTeam error:", error);
       throw error;
     } finally {
       client.release();
@@ -232,13 +165,16 @@ export const postgresStorage = {
   async getLeaderboard() {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query('SELECT * FROM leaderboard ORDER BY score DESC, created_at ASC');
+      const { rows } = await client.query(
+        "SELECT * FROM leaderboard ORDER BY score DESC, created_at ASC",
+      );
       return rows.map((row: any) => ({
         name: row.name,
         score: row.score,
-        createdAt: row.created_at
+        createdAt: row.created_at,
       })) as LeaderboardEntry[];
     } catch (error) {
+      console.error("❌ getLeaderboard error:", error);
       throw error;
     } finally {
       client.release();
@@ -248,15 +184,19 @@ export const postgresStorage = {
   async addLeaderboardEntry(entry: LeaderboardEntry) {
     const client = await pool.connect();
     try {
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO leaderboard (name, score, created_at)
         VALUES ($1, $2, $3)
         ON CONFLICT (name) DO UPDATE SET
           score = EXCLUDED.score,
           created_at = EXCLUDED.created_at
-      `, [entry.name, entry.score, entry.createdAt]);
+      `,
+        [entry.name, entry.score, entry.createdAt],
+      );
       return entry;
     } catch (error) {
+      console.error("❌ addLeaderboardEntry error:", error);
       throw error;
     } finally {
       client.release();
@@ -266,8 +206,9 @@ export const postgresStorage = {
   async clearLeaderboard() {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM leaderboard');
+      await client.query("DELETE FROM leaderboard");
     } catch (error) {
+      console.error("❌ clearLeaderboard error:", error);
       throw error;
     } finally {
       client.release();
@@ -278,21 +219,28 @@ export const postgresStorage = {
   async resetAll() {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM teams');
-      await client.query('DELETE FROM leaderboard');
-      
-      await client.query(`
+      await client.query("DELETE FROM teams");
+      await client.query("DELETE FROM leaderboard");
+
+      await client.query(
+        `
         UPDATE ctf_state 
         SET is_active = TRUE, leaderboard_locked = FALSE, updated_at = $1
         WHERE id = 1
-      `, [Date.now()]);
-      
+      `,
+        [Date.now()],
+      );
+
       // Re-insert admin team
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO teams (id, team_name, is_admin, is_active, created_at)
         VALUES ('team_1761147651991', 'L7ajroot', TRUE, TRUE, $1)
-      `, [new Date().toISOString()]);
+      `,
+        [new Date().toISOString()],
+      );
     } catch (error) {
+      console.error("❌ resetAll error:", error);
       throw error;
     } finally {
       client.release();
@@ -303,13 +251,16 @@ export const postgresStorage = {
   async getCTFState() {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query('SELECT * FROM ctf_state WHERE id = 1');
+      const { rows } = await client.query(
+        "SELECT * FROM ctf_state WHERE id = 1",
+      );
       const row = rows[0];
       return {
         isActive: Boolean(row?.is_active ?? true),
-        leaderboardLocked: Boolean(row?.leaderboard_locked ?? false)
+        leaderboardLocked: Boolean(row?.leaderboard_locked ?? false),
       };
     } catch (error) {
+      console.error("❌ getCTFState error:", error);
       throw error;
     } finally {
       client.release();
@@ -320,29 +271,35 @@ export const postgresStorage = {
     const client = await pool.connect();
     try {
       if (!active) {
-        // When stopping CTF, always lock leaderboard
-        await client.query(`
+        await client.query(
+          `
           UPDATE ctf_state 
           SET is_active = FALSE, leaderboard_locked = TRUE, updated_at = $1
           WHERE id = 1
-        `, [Date.now()]);
-        
-        // Optionally deactivate teams
+        `,
+          [Date.now()],
+        );
+
         if (deactivateTeams) {
-          await client.query('UPDATE teams SET is_active = FALSE WHERE is_admin = FALSE');
+          await client.query(
+            "UPDATE teams SET is_active = FALSE WHERE is_admin = FALSE",
+          );
         }
       } else {
-        // When starting CTF, unlock leaderboard and reactivate all teams
-        await client.query(`
+        await client.query(
+          `
           UPDATE ctf_state 
           SET is_active = TRUE, leaderboard_locked = FALSE, updated_at = $1
           WHERE id = 1
-        `, [Date.now()]);
-        await client.query('UPDATE teams SET is_active = TRUE');
+        `,
+          [Date.now()],
+        );
+        await client.query("UPDATE teams SET is_active = TRUE");
       }
-      
+
       return this.getCTFState();
     } catch (error) {
+      console.error("❌ setCTFActive error:", error);
       throw error;
     } finally {
       client.release();
@@ -352,13 +309,17 @@ export const postgresStorage = {
   async setLeaderboardLocked(locked: boolean) {
     const client = await pool.connect();
     try {
-      await client.query(`
+      await client.query(
+        `
         UPDATE ctf_state 
         SET leaderboard_locked = $1, updated_at = $2
         WHERE id = 1
-      `, [locked, Date.now()]);
+      `,
+        [locked, Date.now()],
+      );
       return this.getCTFState();
     } catch (error) {
+      console.error("❌ setLeaderboardLocked error:", error);
       throw error;
     } finally {
       client.release();
@@ -369,16 +330,19 @@ export const postgresStorage = {
   async getActiveTeams() {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query('SELECT * FROM teams WHERE is_active = TRUE ORDER BY created_at DESC');
+      const { rows } = await client.query(
+        "SELECT * FROM teams WHERE is_active = TRUE ORDER BY created_at DESC",
+      );
       return rows.map((row: any) => ({
         id: row.id,
         name: row.team_name,
         teamName: row.team_name,
         isAdmin: Boolean(row.is_admin),
         isActive: Boolean(row.is_active),
-        createdAt: row.created_at
+        createdAt: row.created_at,
       })) as Team[];
     } catch (error) {
+      console.error("❌ getActiveTeams error:", error);
       throw error;
     } finally {
       client.release();
@@ -389,9 +353,13 @@ export const postgresStorage = {
   async isTeamActive(teamName: string) {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query('SELECT is_active FROM teams WHERE team_name ILIKE $1', [teamName]);
+      const { rows } = await client.query(
+        "SELECT is_active FROM teams WHERE team_name ILIKE $1",
+        [teamName],
+      );
       return rows.length > 0 ? Boolean(rows[0].is_active) : false;
     } catch (error) {
+      console.error("❌ isTeamActive error:", error);
       throw error;
     } finally {
       client.release();
@@ -402,15 +370,18 @@ export const postgresStorage = {
   async setTeamActive(id: string, active: boolean) {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query(`
+      const { rows } = await client.query(
+        `
         UPDATE teams 
         SET is_active = $1
         WHERE id = $2 AND is_admin = FALSE
         RETURNING *
-      `, [active, id]);
-      
+      `,
+        [active, id],
+      );
+
       if (rows.length === 0) return null;
-      
+
       const row = rows[0];
       return {
         id: row.id,
@@ -418,9 +389,10 @@ export const postgresStorage = {
         teamName: row.team_name,
         isAdmin: Boolean(row.is_admin),
         isActive: Boolean(row.is_active),
-        createdAt: row.created_at
+        createdAt: row.created_at,
       } as Team;
     } catch (error) {
+      console.error("❌ setTeamActive error:", error);
       throw error;
     } finally {
       client.release();
@@ -432,8 +404,8 @@ export const postgresStorage = {
     const client = await pool.connect();
     try {
       const { rows } = await client.query(
-        'SELECT * FROM game_progress WHERE team_name = $1 ORDER BY created_at ASC',
-        [teamName]
+        "SELECT * FROM game_progress WHERE team_name = $1 ORDER BY created_at ASC",
+        [teamName],
       );
       return rows.map((row: any) => ({
         id: row.id,
@@ -443,20 +415,22 @@ export const postgresStorage = {
         completed: Boolean(row.completed),
         completedAt: row.completed_at,
         createdAt: row.created_at,
-        updatedAt: row.updated_at
+        updatedAt: row.updated_at,
       })) as GameProgress[];
     } catch (error) {
+      console.error("❌ getTeamProgress error:", error);
       throw error;
     } finally {
       client.release();
     }
   },
 
-  async saveGameProgress(progress: Omit<GameProgress, 'id'>) {
+  async saveGameProgress(progress: Omit<GameProgress, "id">) {
     const client = await pool.connect();
     try {
       const now = Date.now();
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO game_progress (team_name, challenge_id, score, completed, completed_at, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         ON CONFLICT (team_name, challenge_id) DO UPDATE SET
@@ -464,16 +438,19 @@ export const postgresStorage = {
           completed = EXCLUDED.completed,
           completed_at = EXCLUDED.completed_at,
           updated_at = EXCLUDED.updated_at
-      `, [
-        progress.teamName,
-        progress.challengeId,
-        progress.score,
-        progress.completed,
-        progress.completedAt || (progress.completed ? now : null),
-        progress.createdAt || now,
-        now
-      ]);
+      `,
+        [
+          progress.teamName,
+          progress.challengeId,
+          progress.score,
+          progress.completed,
+          progress.completedAt || (progress.completed ? now : null),
+          progress.createdAt || now,
+          now,
+        ],
+      );
     } catch (error) {
+      console.error("❌ saveGameProgress error:", error);
       throw error;
     } finally {
       client.release();
@@ -483,8 +460,11 @@ export const postgresStorage = {
   async resetTeamProgress(teamName: string) {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM game_progress WHERE team_name = $1', [teamName]);
+      await client.query("DELETE FROM game_progress WHERE team_name = $1", [
+        teamName,
+      ]);
     } catch (error) {
+      console.error("❌ resetTeamProgress error:", error);
       throw error;
     } finally {
       client.release();
@@ -494,7 +474,9 @@ export const postgresStorage = {
   async getAllProgress() {
     const client = await pool.connect();
     try {
-      const { rows } = await client.query('SELECT * FROM game_progress ORDER BY team_name, created_at ASC');
+      const { rows } = await client.query(
+        "SELECT * FROM game_progress ORDER BY team_name, created_at ASC",
+      );
       return rows.map((row: any) => ({
         id: row.id,
         teamName: row.team_name,
@@ -503,9 +485,10 @@ export const postgresStorage = {
         completed: Boolean(row.completed),
         completedAt: row.completed_at,
         createdAt: row.created_at,
-        updatedAt: row.updated_at
+        updatedAt: row.updated_at,
       })) as GameProgress[];
     } catch (error) {
+      console.error("❌ getAllProgress error:", error);
       throw error;
     } finally {
       client.release();
@@ -516,8 +499,9 @@ export const postgresStorage = {
   async clearAllProgress() {
     const client = await pool.connect();
     try {
-      await client.query('DELETE FROM game_progress');
+      await client.query("DELETE FROM game_progress");
     } catch (error) {
+      console.error("❌ clearAllProgress error:", error);
       throw error;
     } finally {
       client.release();
@@ -527,21 +511,22 @@ export const postgresStorage = {
   async deleteAllNonAdminTeams() {
     const client = await pool.connect();
     try {
-      // First delete their progress
       await client.query(`
         DELETE FROM game_progress 
         WHERE team_name IN (
           SELECT team_name FROM teams WHERE is_admin = FALSE
         )
       `);
-      
-      // Then delete the teams
-      const result = await client.query('DELETE FROM teams WHERE is_admin = FALSE');
+
+      const result = await client.query(
+        "DELETE FROM teams WHERE is_admin = FALSE",
+      );
       return result.rowCount || 0;
     } catch (error) {
+      console.error("❌ deleteAllNonAdminTeams error:", error);
       throw error;
     } finally {
       client.release();
     }
-  }
+  },
 };

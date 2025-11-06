@@ -2,17 +2,33 @@ services:
   web:
     build:
       context: .
-      args:
-        # Provide a default value for local development.
-        # For production, this should be set in your CI/CD environment.
-        - SECRET_COOKIE_PASSWORD=your-super-secret-password-for-iron-session
     ports:
-      - "9002:9002"
-    volumes:
-      # Mount the data directory to persist team and leaderboard data
-      # across container restarts during local development.
-      - ./src/data:/app/src/data
-    # Use env_file to load environment variables from .env.local
-    # This is a good practice for managing secrets.
+      - "3000:3000"
     env_file:
       - .env.local
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["/bin/sh", "-c", "npm run dev"]
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
