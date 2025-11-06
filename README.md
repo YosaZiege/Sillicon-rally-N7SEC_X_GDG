@@ -1,6 +1,6 @@
 # Sillicon Ralley
 
-Collaboration Project between GDG and N7Sec
+Collaboration Project between GDG and N7Sec for Integration Day
 
 Main Devs : Youssef RAHIOUI, Tarik KHOUMRI
 
